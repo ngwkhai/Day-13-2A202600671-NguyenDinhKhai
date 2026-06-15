@@ -1,0 +1,21 @@
+{
+  "team": "Khai",
+  "phase": "public",
+  "headline": 100.0,
+  "sub": {
+    "correct": 0.9383,
+    "quality": 0.9567,
+    "error": 1.0,
+    "latency": 0.6178,
+    "cost": 0.3682,
+    "drift": 0.6586,
+    "prompt": 0.9719
+  },
+  "diag_f1": 0.952,
+  "n": 120,
+  "n_correct": 112,
+  "judge_mode": "offline",
+  "weights_hash": "e81a8ed58d93",
+  "key_hash": "9a800fa6968d",
+  "sig": "38663e6cedc5ce6ae2200bad739f8c3ad6ba8ae51d724a48780012b525bb6c36"
+}

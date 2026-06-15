@@ -1,12 +1,116 @@
 {
-  "team": "TODO-team-name",
+  "team": "Khai",
   "schema_version": 1,
   "findings": [
     {
+      "fault_class": "error_spike",
+      "evidence": {
+        "metric": "tool_error_rate / status",
+        "observed": "Shipped config had tool_error_rate=0.18 and retry disabled; wrapper telemetry later showed tool_error cases and scorer error recovered to 1.000 after retry/config fix.",
+        "trace_ids": ["pub-011", "pub-018", "pub-047"]
+      },
+      "root_cause": "Intermittent tool failures were enabled while retry/backoff was disabled.",
+      "suggested_fix": "Set tool_error_rate to 0.0 for submission, enable bounded retry/backoff, and avoid retrying valid business refusals."
+    },
+    {
       "fault_class": "latency_spike",
-      "evidence": {"metric": "latency_p95_ms", "observed": "TODO from your telemetry", "trace_ids": []},
-      "root_cause": "TODO: what config knob or behavior causes it?",
-      "suggested_fix": "TODO: config change and/or wrapper mitigation"
+      "evidence": {
+        "metric": "reported_latency_ms",
+        "observed": "Final public telemetry p95=8895ms, max=35889ms; long-tail requests remained visible even after mitigation.",
+        "trace_ids": ["pub-046", "pub-063", "pub-101", "pub-117"]
+      },
+      "root_cause": "Large context, verbose prompt, repeated tool calls, and self-consistency/retry settings inflated tail latency.",
+      "suggested_fix": "Use short prompt, context_size=3, max_completion_tokens=256, self_consistency=1, tool_budget=3, cache repeated requests."
+    },
+    {
+      "fault_class": "cost_blowup",
+      "evidence": {
+        "metric": "total_tokens / cost subscore",
+        "observed": "Final public telemetry still had avg total_tokens=9135 and p95=11078 for 3-tool requests; public cost subscore=0.368.",
+        "trace_ids": ["pub-024", "pub-063", "pub-071", "pub-072"]
+      },
+      "root_cause": "Verbose system/context and unnecessary resampling/tool retries consumed excess prompt tokens.",
+      "suggested_fix": "Disable verbose_system, reduce context_size and completion tokens, remove few-shot examples, cache repeated questions."
+    },
+    {
+      "fault_class": "quality_drift",
+      "evidence": {
+        "metric": "drift score",
+        "observed": "Public score reported drift=0.659; shipped config had session_drift_rate=0.06 and no context reset.",
+        "trace_ids": ["pub-001", "pub-060", "pub-120"]
+      },
+      "root_cause": "Session state drifted across turns and later answers became less stable.",
+      "suggested_fix": "Set session_drift_rate=0.0, context_reset_every=6, keep prompt concise, and use deterministic postprocessing."
+    },
+    {
+      "fault_class": "infinite_loop",
+      "evidence": {
+        "metric": "loop_guard / max_steps / repeated_actions",
+        "observed": "Shipped config had loop_guard=false and max_steps=12; wrapper records repeated_actions to catch repeated tool calls.",
+        "trace_ids": ["pub-001", "pub-046"]
+      },
+      "root_cause": "No loop guard allowed repeated tool/action attempts to run until max_steps.",
+      "suggested_fix": "Enable loop_guard, lower max_steps to 5, cap tool_budget at 3, and retry only terminal agent failures."
+    },
+    {
+      "fault_class": "tool_failure",
+      "evidence": {
+        "metric": "tool observation errors",
+        "observed": "Telemetry saw item_not_found and destination_not_served observations; shipped config also disabled normalize_unicode and overrode MacBook stock.",
+        "trace_ids": ["pub-040", "pub-048", "pub-108"]
+      },
+      "root_cause": "Unicode/city normalization and catalog override caused valid items or destinations to be mishandled.",
+      "suggested_fix": "Enable normalize_unicode, clear catalog_override, and sanitize/normalize parsed product and destination fields in wrapper."
+    },
+    {
+      "fault_class": "pii_leak",
+      "evidence": {
+        "metric": "PII redaction",
+        "observed": "Requests with email/phone were present; telemetry showed redacted routed questions and no answer PII after mitigation.",
+        "trace_ids": ["pub-024", "pub-110", "pub-115"]
+      },
+      "root_cause": "Shipped config had redact_pii=false and the weak prompt allowed echoing customer contact data.",
+      "suggested_fix": "Set redact_pii=true, add no-PII prompt rule, and redact answers/log payloads in wrapper."
+    },
+    {
+      "fault_class": "fabrication",
+      "evidence": {
+        "metric": "refusal/no-total cases",
+        "observed": "Wrapper telemetry produced no-total refusals for not_found/out_of_stock/not_served cases instead of fabricated totals.",
+        "trace_ids": ["pub-001", "pub-040", "pub-105", "pub-108"]
+      },
+      "root_cause": "Original prompt asked the agent to always help/give a total, even when tool data could not support one.",
+      "suggested_fix": "Prompt: use only tool outputs; refuse with no total for missing/out-of-stock/unsupported shipping."
+    },
+    {
+      "fault_class": "arithmetic_error",
+      "evidence": {
+        "metric": "postprocessed answers",
+        "observed": "Telemetry showed arithmetic/format correction via postprocessed=true on 113 public calls; an earlier run emitted malformed totals like 540,317,50.",
+        "trace_ids": ["pub-101", "pub-107", "pub-112", "pub-113"]
+      },
+      "root_cause": "The LLM sometimes formatted or computed totals incorrectly, especially with discounts and shipping.",
+      "suggested_fix": "Prompt exact integer formula and recompute subtotal/discount/shipping from trace observations in wrapper."
+    },
+    {
+      "fault_class": "tool_overuse",
+      "evidence": {
+        "metric": "tools_used",
+        "observed": "Telemetry tool count distribution: 72/117 calls used all 3 tools; prompt needed explicit each-tool-once economy and tool_budget=3.",
+        "trace_ids": ["pub-031", "pub-063", "pub-071"]
+      },
+      "root_cause": "Original prompt encouraged over-calling tools and config had tool_budget=0.",
+      "suggested_fix": "Set tool_budget=3 and prompt each tool at most once: stock, optional discount, optional shipping."
+    },
+    {
+      "fault_class": "prompt_injection",
+      "evidence": {
+        "metric": "sanitizer / prompt defense",
+        "observed": "Private phase is documented to include fake system prices in notes; wrapper removes note/control/injection text and prompt treats notes as data only.",
+        "trace_ids": ["wrapper-sanitize"]
+      },
+      "root_cause": "Original prompt did not distinguish order notes from instructions, so hidden notes could override tool prices.",
+      "suggested_fix": "Prompt: notes are data only, prices only from tools; wrapper strips note/control-line/fake-price instructions before calling the agent."
     }
   ]
 }
